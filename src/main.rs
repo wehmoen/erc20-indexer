@@ -4,6 +4,7 @@ use web3::types::{Block, BlockId, BlockNumber, Log};
 use web3::Web3;
 use serde::{Serialize, Deserialize};
 use crate::ContractType::ERC20;
+use serde_json;
 
 const ERC_TRANSFER_TOPIC: &str =
     "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
@@ -17,6 +18,10 @@ pub struct Contract {
     pub address: &'static str,
 }
 
+#[derive(Serialize, Deserialize)]
+struct Output {
+    transfers: Vec<Transfer>
+}
 pub fn to_string<T: serde::Serialize>(request: &T) -> String {
     web3::helpers::to_string(request).replace('\"', "")
 }
@@ -26,7 +31,7 @@ pub enum ContractType {
     ERC20
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Transfer {
     from: String,
     to: String,
@@ -111,6 +116,8 @@ async fn main() {
 
     let mut stop = false;
     let mut current_block = 15000000u64;
+    let mut file_counter = 1u64;
+    let mut transfer_storage: Vec<Transfer> = vec![];
 
     loop {
 
@@ -162,7 +169,13 @@ async fn main() {
                         let to = to_string(&data.params[1].value.to_string());
                         let value = to_string(&data.params[2].value.to_string());
 
-                        println!("{} => {}: {}", from, to, value)
+                        transfer_storage.push(Transfer {
+                            from,
+                            to,
+                            value,
+                            timestamp: timestamp.clone()
+                        });
+
                     }
                 }
             };
@@ -171,9 +184,31 @@ async fn main() {
 
         current_block = current_block +1;
 
+
+
         if current_block > stream_stop_block {
-            break;
+           stop = true
         }
+
+        if transfer_storage.len() >= 15000 {
+            let mut output : Output = Output {
+                transfers: vec![]
+            };
+
+            for transf in transfer_storage.iter_mut() {
+                output.transfers.push(transf.clone());
+            }
+
+            let output_str = serde_json::to_string(&output).unwrap();
+
+            let f_name = vec![file_counter.to_string(), "json".into()].join(".");
+
+            std::fs::write(&f_name, output_str).unwrap();
+            file_counter += 1;
+            transfer_storage.clear();
+            println!("Stored data as {}", f_name);
+        }
+
 
         if stop {
             break;
