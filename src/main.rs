@@ -26,7 +26,6 @@ pub enum ContractType {
     ERC20
 }
 
-
 #[derive(Serialize, Deserialize)]
 pub struct Transfer {
     from: String,
@@ -138,31 +137,34 @@ async fn main() {
             .collect();
 
         for tx in block.transactions {
-            let tx_to = to_string(&tx.to.unwrap());
-            if contracts_of_interest.contains(&tx_to.as_str()) {
-                let receipt = web3.eth().transaction_receipt(tx.hash).await.unwrap().unwrap();
-                let transfer_log = receipt
-                    .logs
-                    .iter()
-                    .filter(|x| {
-                        to_string(&x.topics[0]) == ERC_TRANSFER_TOPIC
-                            && contracts.contains(&to_string(&x.address).as_str())
-                    })
-                    .collect::<Vec<&Log>>();
+            if let Some(tx_to) = tx.to {
+                let tx_to = to_string(&tx_to);
+                if contracts_of_interest.contains(&tx_to.as_str()) {
+                    let receipt = web3.eth().transaction_receipt(tx.hash).await.unwrap().unwrap();
+                    let transfer_log = receipt
+                        .logs
+                        .iter()
+                        .filter(|x| {
+                            to_string(&x.topics[0]) == ERC_TRANSFER_TOPIC
+                                && contracts.contains(&to_string(&x.address).as_str())
+                        })
+                        .collect::<Vec<&Log>>();
 
-                for transfer in transfer_log {
-                    let data = event.parse_log(RawLog {
-                        topics: transfer.to_owned().topics,
-                        data: transfer.to_owned().data.0,
-                    }).unwrap();
+                    for transfer in transfer_log {
+                        let data = event.parse_log(RawLog {
+                            topics: transfer.to_owned().topics,
+                            data: transfer.to_owned().data.0,
+                        }).unwrap();
 
-                    let from = to_string(&data.params[0].value.to_string());
-                    let to = to_string(&data.params[1].value.to_string());
-                    let value = to_string(&data.params[2].value.to_string());
+                        let from = to_string(&data.params[0].value.to_string());
+                        let to = to_string(&data.params[1].value.to_string());
+                        let value = to_string(&data.params[2].value.to_string());
 
-                    println!("Block: {} ====> {} => {}: {}", current_block, from, to, value)
+                        println!("Block: {} ====> {} => {}: {}", current_block, from, to, value)
+                    }
                 }
-            }
+            };
+
         }
 
         current_block = current_block +1;
