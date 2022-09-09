@@ -116,7 +116,7 @@ async fn main() {
 
 
     let mut stop = false;
-    let mut current_block = 15000000u64;
+    let mut current_block = 0u64;
     let mut file_counter = 1u64;
     let mut transfer_storage: Vec<Transfer> = vec![];
 
