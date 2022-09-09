@@ -150,6 +150,8 @@ async fn main() {
                         })
                         .collect::<Vec<&Log>>();
 
+                    println!("{}: => {} transfers", current_block, transfer_log.len());
+
                     for transfer in transfer_log {
                         let data = event.parse_log(RawLog {
                             topics: transfer.to_owned().topics,
@@ -160,7 +162,7 @@ async fn main() {
                         let to = to_string(&data.params[1].value.to_string());
                         let value = to_string(&data.params[2].value.to_string());
 
-                        println!("Block: {} ====> {} => {}: {}", current_block, from, to, value)
+                        println!("{} => {}: {}", from, to, value)
                     }
                 }
             };
