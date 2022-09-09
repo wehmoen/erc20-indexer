@@ -157,8 +157,6 @@ async fn main() {
                         })
                         .collect::<Vec<&Log>>();
 
-                    println!("{}: => {} transfers", current_block, transfer_log.len());
-
                     for transfer in transfer_log {
                         let data = event.parse_log(RawLog {
                             topics: transfer.to_owned().topics,
@@ -214,6 +212,4 @@ async fn main() {
             break;
         }
     }
-
-    println!("Hello, world!");
 }
