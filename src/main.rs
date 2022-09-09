@@ -33,6 +33,7 @@ pub enum ContractType {
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Transfer {
+    contract: String,
     from: String,
     to: String,
     value: String,
@@ -168,6 +169,7 @@ async fn main() {
                         let value = to_string(&data.params[2].value.to_string());
 
                         transfer_storage.push(Transfer {
+                            contract: tx_to.clone(),
                             from,
                             to,
                             value,
