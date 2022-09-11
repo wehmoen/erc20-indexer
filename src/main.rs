@@ -198,6 +198,11 @@ async fn main() {
            stop = true
         }
 
+        let total_stored = (file_counter * MAX_TRANSFER_PER_FILE as u64) + transfer_storage.len() as u64;
+
+        println!("Exported Transfers: {}", total_stored.separate_with_commas());
+
+
         if transfer_storage.len() >= MAX_TRANSFER_PER_FILE {
             let mut output : Output = Output {
                 transfers: vec![]
@@ -217,11 +222,6 @@ async fn main() {
             transfer_storage.clear();
 
         }
-
-        let total_stored = (file_counter * MAX_TRANSFER_PER_FILE as u64) + transfer_storage.len() as u64;
-
-        println!("Exported Transfers: {}", total_stored.separate_with_commas());
-
         if stop {
             break;
         }
