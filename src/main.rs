@@ -149,7 +149,7 @@ async fn main() {
             .unwrap_or_else(|| panic!("Failed to unwrap block {} from result!", current_block));
 
         let total_stored = file_counter * MAX_TRANSFER_PER_FILE as u64 - MAX_TRANSFER_PER_FILE as u64;
-        println!("Block: {:>12} Exported Transfers: {:>5} Pending transfers: {:>6}", current_block,  total_stored.separate_with_commas(), transfer_storage.len());
+        println!("Block: {:>12} Exported Transfers: {:>5} Pending transfers: {:>6}", current_block.separate_with_commas(),  total_stored.separate_with_commas(), transfer_storage.len().separate_with_commas());
 
         let timestamp = block.timestamp.as_u64() * 1000;
 
