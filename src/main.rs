@@ -1,14 +1,16 @@
+use thousands::Separable;
 use std::collections::HashMap;
 use web3::ethabi::{Event, EventParam, ParamType, RawLog};
-use web3::types::{Block, BlockId, BlockNumber, Log};
+use web3::types::{BlockId, BlockNumber, Log};
 use web3::Web3;
 use serde::{Serialize, Deserialize};
 use crate::ContractType::ERC20;
-use serde_json;
 
 const ERC_TRANSFER_TOPIC: &str =
     "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 
+const OUTPUT_PATH_PREFIX: &str = "output";
+const MAX_TRANSFER_PER_FILE: usize = 15000;
 
 #[derive(Serialize, Deserialize)]
 pub struct Contract {
@@ -40,10 +42,21 @@ pub struct Transfer {
     timestamp: u64
 }
 
+fn output_path(filename: String) -> String {
+    [
+        OUTPUT_PATH_PREFIX.to_string(),
+        filename
+    ].join("/")
+}
+
 #[tokio::main]
 async fn main() {
     let provider = web3::transports::WebSocket::new("ws://127.0.0.1:8546").await.unwrap();
     let web3 =  Web3::new(provider);
+
+    if !std::path::Path::new(OUTPUT_PATH_PREFIX).exists() {
+        std::fs::create_dir_all(OUTPUT_PATH_PREFIX).unwrap();
+    }
 
     let mut map = HashMap::new();
 
@@ -55,12 +68,12 @@ async fn main() {
         pub address: &'static str,
     }
 
-
     let contracts_of_interest = [
         "0xc99a6a985ed2cac1ef41640596c5a5f9f4e19ef5",
         "0xed4a9f48a62fb6fdcfb45bb00c9f61d1a436e58c",
         "0xa8754b9fa15fc18bb59458815510e40a12cd2014"
     ];
+
     map.insert(
         "0xc99a6a985ed2cac1ef41640596c5a5f9f4e19ef5",
         Contract {
@@ -112,8 +125,6 @@ async fn main() {
         ],
         anonymous: false,
     };
-
-
 
     let mut stop = false;
     let mut current_block = 0u64;
@@ -173,24 +184,21 @@ async fn main() {
                             from,
                             to,
                             value,
-                            timestamp: timestamp.clone()
+                            timestamp
                         });
 
                     }
                 }
             };
-
         }
 
-        current_block = current_block +1;
-
-
+        current_block += 1;
 
         if current_block > stream_stop_block {
            stop = true
         }
 
-        if transfer_storage.len() >= 15000 {
+        if transfer_storage.len() >= MAX_TRANSFER_PER_FILE {
             let mut output : Output = Output {
                 transfers: vec![]
             };
@@ -201,14 +209,18 @@ async fn main() {
 
             let output_str = serde_json::to_string(&output).unwrap();
 
-            let f_name = vec![file_counter.to_string(), "json".into()].join(".");
+            let f_name = output_path(vec![file_counter.to_string(), "json".into()].join("."));
 
             std::fs::write(&f_name, output_str).unwrap();
+
             file_counter += 1;
             transfer_storage.clear();
-            println!("Stored data as {}", f_name);
+
         }
 
+        let total_stored = (file_counter * MAX_TRANSFER_PER_FILE as u64) + transfer_storage.len() as u64;
+
+        println!("Exported Transfers: {}", total_stored.separate_with_commas());
 
         if stop {
             break;
