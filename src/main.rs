@@ -133,6 +133,7 @@ async fn main() {
 
     loop {
 
+
         let chain_head_block = web3
             .eth()
             .block_number()
@@ -146,6 +147,9 @@ async fn main() {
             .await
             .unwrap_or_else(|_| panic!("Failed to load block {} from provider!", current_block))
             .unwrap_or_else(|| panic!("Failed to unwrap block {} from result!", current_block));
+
+        let total_stored = (file_counter * MAX_TRANSFER_PER_FILE as u64) + transfer_storage.len() as u64;
+        println!("Block: {:>12} Exported Transfers: {}", current_block,  total_stored.separate_with_commas());
 
         let timestamp = block.timestamp.as_u64() * 1000;
 
@@ -197,11 +201,6 @@ async fn main() {
         if current_block > stream_stop_block {
            stop = true
         }
-
-        let total_stored = (file_counter * MAX_TRANSFER_PER_FILE as u64) + transfer_storage.len() as u64;
-
-        println!("Exported Transfers: {}", total_stored.separate_with_commas());
-
 
         if transfer_storage.len() >= MAX_TRANSFER_PER_FILE {
             let mut output : Output = Output {
