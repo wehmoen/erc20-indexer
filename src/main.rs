@@ -101,18 +101,12 @@ async fn main() {
         pub address: &'static str,
     }
 
-    let contracts_of_interest = [
-        "0xc99a6a985ed2cac1ef41640596c5a5f9f4e19ef5",
-        "0xed4a9f48a62fb6fdcfb45bb00c9f61d1a436e58c",
-        "0xa8754b9fa15fc18bb59458815510e40a12cd2014"
-    ];
-
     map.insert(
         "0xc99a6a985ed2cac1ef41640596c5a5f9f4e19ef5",
         Contract {
             name: "WETH",
             decimals: 18,
-            erc: ContractType::ERC20,
+            erc: ERC20,
             address: "0xc99a6a985ed2cac1ef41640596c5a5f9f4e19ef5",
         },
     );
@@ -122,7 +116,7 @@ async fn main() {
         Contract {
             name: "AXS",
             decimals: 18,
-            erc: ContractType::ERC20,
+            erc: ERC20,
             address: "0xed4a9f48a62fb6fdcfb45bb00c9f61d1a436e58c",
         },
     );
@@ -132,7 +126,7 @@ async fn main() {
         Contract {
             name: "SLP",
             decimals: 0,
-            erc: ContractType::ERC20,
+            erc: ERC20,
             address: "0xa8754b9fa15fc18bb59458815510e40a12cd2014",
         },
     );
@@ -191,38 +185,39 @@ async fn main() {
             .collect();
 
         for tx in block.transactions {
+
+
             if let Some(tx_to) = tx.to {
                 let tx_to = to_string(&tx_to);
-                if contracts_of_interest.contains(&tx_to.as_str()) {
-                    let receipt = web3.eth().transaction_receipt(tx.hash).await.unwrap().unwrap();
-                    let transfer_log = receipt
-                        .logs
-                        .iter()
-                        .filter(|x| {
-                            to_string(&x.topics[0]) == ERC_TRANSFER_TOPIC
-                                && contracts.contains(&to_string(&x.address).as_str())
-                        })
-                        .collect::<Vec<&Log>>();
 
-                    for transfer in transfer_log {
-                        let data = event.parse_log(RawLog {
-                            topics: transfer.to_owned().topics,
-                            data: transfer.to_owned().data.0,
-                        }).unwrap();
+                let receipt = web3.eth().transaction_receipt(tx.hash).await.unwrap().unwrap();
+                let transfer_log = receipt
+                    .logs
+                    .iter()
+                    .filter(|x| {
+                        to_string(&x.topics[0]) == ERC_TRANSFER_TOPIC
+                            && contracts.contains(&to_string(&x.address).as_str())
+                    })
+                    .collect::<Vec<&Log>>();
 
-                        let from = to_string(&data.params[0].value.to_string());
-                        let to = to_string(&data.params[1].value.to_string());
-                        let value = to_string(&data.params[2].value.to_string());
+                for transfer in transfer_log {
+                    let data = event.parse_log(RawLog {
+                        topics: transfer.to_owned().topics,
+                        data: transfer.to_owned().data.0,
+                    }).unwrap();
 
-                        transfer_storage.push(Transfer {
-                            contract: tx_to.clone(),
-                            from,
-                            to,
-                            value,
-                            timestamp
-                        });
+                    let from = to_string(&data.params[0].value.to_string());
+                    let to = to_string(&data.params[1].value.to_string());
+                    let value = to_string(&data.params[2].value.to_string());
 
-                    }
+                    transfer_storage.push(Transfer {
+                        contract: tx_to.clone(),
+                        from,
+                        to,
+                        value,
+                        timestamp
+                    });
+
                 }
             };
         }
@@ -238,7 +233,6 @@ async fn main() {
             transfer_collection.insert_many(&transfer_storage, None).await.ok();
 
             transfer_storage.clear();
-
         }
 
         println!("Block: {:>12} Total Transfer: {:>12} Pending Transfer: {:>6}", current_block.separate_with_commas(), total_transfers.separate_with_commas(), transfer_storage.len().separate_with_commas());
