@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use thousands::Separable;
 use web3::ethabi::{Event, EventParam, ParamType, RawLog};
 use web3::types::{BlockId, BlockNumber, Log};
 use web3::Web3;
@@ -240,7 +241,7 @@ async fn main() {
 
         }
 
-        println!("Block: {:>12} Total Transfer: {:>12} Pending Transfer: {:>6}", current_block, total_transfers, transfer_storage.len());
+        println!("Block: {:>12} Total Transfer: {:>12} Pending Transfer: {:>6}", current_block.separate_with_commas(), total_transfers.separate_with_commas(), transfer_storage.len().separate_with_commas());
 
         if stop {
             break;
