@@ -163,6 +163,8 @@ async fn main() {
 
     let mut transfer_storage: Vec<Transfer> = vec![];
 
+    let mut total_transfers: u64 = 0;
+
     loop {
 
         let chain_head_block = web3
@@ -231,12 +233,15 @@ async fn main() {
         }
 
         if transfer_storage.len() >= MONGO_BATCH_SIZE || stop {
-
+            total_transfers += transfer_storage.len()  as u64;
             transfer_collection.insert_many(&transfer_storage, None).await.ok();
 
             transfer_storage.clear();
 
         }
+
+        println!("Block: {:>12} Total Transfer: {:>12} Pending Transfer: {:>6}", current_block, total_transfers, transfer_storage.len());
+
         if stop {
             break;
         }
