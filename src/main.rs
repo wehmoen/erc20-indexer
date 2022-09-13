@@ -1,16 +1,21 @@
-use thousands::Separable;
 use std::collections::HashMap;
 use web3::ethabi::{Event, EventParam, ParamType, RawLog};
 use web3::types::{BlockId, BlockNumber, Log};
 use web3::Web3;
 use serde::{Serialize, Deserialize};
+use mongodb::{Client};
+use mongodb::bson::Document;
+use mongodb::options::IndexOptions;
 use crate::ContractType::ERC20;
 
 const ERC_TRANSFER_TOPIC: &str =
     "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 
-const OUTPUT_PATH_PREFIX: &str = "output";
-const MAX_TRANSFER_PER_FILE: usize = 15000;
+const MONGO_DB_URI: &str = "mongodb://127.0.0.1:27017";
+const MONGO_DB_NAME: &str = "ronin-erc20";
+const MONGO_DB_COLLECTION_NAME: &str = "transfers";
+
+const MONGO_BATCH_SIZE: usize = 15000;
 
 #[derive(Serialize, Deserialize)]
 pub struct Contract {
@@ -42,11 +47,22 @@ pub struct Transfer {
     timestamp: u64
 }
 
-fn output_path(filename: String) -> String {
-    [
-        OUTPUT_PATH_PREFIX.to_string(),
-        filename
-    ].join("/")
+pub struct IndexModel {
+    pub model: Document,
+    pub options: IndexOptions,
+}
+
+fn index_model(key: &'static str, unique: bool) -> IndexModel {
+    let mut doc = Document::new();
+    doc.insert(key, 1u32);
+
+    IndexModel {
+        model: doc,
+        options: match unique {
+            true => IndexOptions::builder().unique(true).build(),
+            false => Default::default(),
+        },
+    }
 }
 
 #[tokio::main]
@@ -54,8 +70,24 @@ async fn main() {
     let provider = web3::transports::WebSocket::new("ws://127.0.0.1:8546").await.unwrap();
     let web3 =  Web3::new(provider);
 
-    if !std::path::Path::new(OUTPUT_PATH_PREFIX).exists() {
-        std::fs::create_dir_all(OUTPUT_PATH_PREFIX).unwrap();
+    let db_client = Client::with_uri_str(MONGO_DB_URI)
+        .await
+        .unwrap_or_else(|_| panic!("Failed to connect to mongodb at {}", MONGO_DB_URI));
+
+    let db_indexes: Vec<IndexModel> = vec![
+        index_model("contract", false),
+        index_model("from", false),
+        index_model("to", false),
+        index_model("value", false),
+        index_model("timestamp", false)
+    ];
+
+    let db_db = db_client.database(MONGO_DB_NAME);
+    let transfer_collection = db_db.collection::<Transfer>(MONGO_DB_COLLECTION_NAME);
+
+    for model in db_indexes {
+            // If indexes exists this will fail silently.
+            transfer_collection.create_index(mongodb::IndexModel::builder().keys(model.model).options(model.options).build(), None).await.ok();
     }
 
     let mut map = HashMap::new();
@@ -128,11 +160,10 @@ async fn main() {
 
     let mut stop = false;
     let mut current_block = 0u64;
-    let mut file_counter = 1u64;
+
     let mut transfer_storage: Vec<Transfer> = vec![];
 
     loop {
-
 
         let chain_head_block = web3
             .eth()
@@ -147,9 +178,6 @@ async fn main() {
             .await
             .unwrap_or_else(|_| panic!("Failed to load block {} from provider!", current_block))
             .unwrap_or_else(|| panic!("Failed to unwrap block {} from result!", current_block));
-
-        let total_stored = file_counter * MAX_TRANSFER_PER_FILE as u64 - MAX_TRANSFER_PER_FILE as u64;
-        println!("Block: {:>12} Exported Transfers: {:>5} Pending transfers: {:>6}", current_block.separate_with_commas(),  total_stored.separate_with_commas(), transfer_storage.len().separate_with_commas());
 
         let timestamp = block.timestamp.as_u64() * 1000;
 
@@ -202,22 +230,10 @@ async fn main() {
            stop = true
         }
 
-        if transfer_storage.len() >= MAX_TRANSFER_PER_FILE {
-            let mut output : Output = Output {
-                transfers: vec![]
-            };
+        if transfer_storage.len() >= MONGO_BATCH_SIZE || stop {
 
-            for transf in transfer_storage.iter_mut() {
-                output.transfers.push(transf.clone());
-            }
+            transfer_collection.insert_many(&transfer_storage, None).await.ok();
 
-            let output_str = serde_json::to_string(&output).unwrap();
-
-            let f_name = output_path(vec![file_counter.to_string(), "json".into()].join("."));
-
-            std::fs::write(&f_name, output_str).unwrap();
-
-            file_counter += 1;
             transfer_storage.clear();
 
         }
